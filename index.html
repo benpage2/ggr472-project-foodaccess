@@ -94,7 +94,34 @@
                             <option value="0">Select...</option>
                             <!-- add options with javascript -->
                         </select>
-
+                    </div>
+                </div>
+                <!-- Comparison Mode -->
+                <div class="row">
+                    <div class="col">
+                        <button type="button" class="btn btn-outline-secondary btn-sm mt-3 mb-2" id="compareToggle">Enable Comparison Mode</button>
+                    </div>
+                </div>
+                <div id="comparison-controls" style="display:none;">
+                    <div class="row">
+                        <div class="col"><hr/><strong>Comparison Selection:</strong></div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <!-- comparison transit filter images -->
+                            <button id="btnWalkComp" class="bi-person-walking iconfilter"></button>
+                            <button id="btnBikeComp" class="bi-bicycle iconfilter"></button>
+                            <button id="btnTransitComp" class="bi-bus-front iconfilter iconfilter-clicked"></button>
+                            <button id="btnCarComp" class="bi-car-front iconfilter"></button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col"><label for="chains-comp">Compare with:</label>
+                            <select id="chain-select-comp" name="chains-comp">
+                                <option value="0">Select...</option>
+                                <!-- options added with javascript -->
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <hr />
