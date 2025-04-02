@@ -69,12 +69,11 @@ const updateFilter = (chain, mode) => {
 };
 
 const calculateDifference = () => {
-  // First, hide the layer to prevent any flickering during the update
-  map.setLayoutProperty("res8-poly", "visibility", "none");
+  // Calculate the difference between two layers
+  map.setLayoutProperty("res8-poly", "visibility", "visible");
 
   const baseTimeLookup = {}; // data for base layer
   const compTimeLookup = {}; // data for comparison layer
-  const MAX_TRAVEL_TIME = 120;
 
   traveltimesjson.features.forEach((feature) => {
     // go through array for each element
@@ -103,44 +102,77 @@ const calculateDifference = () => {
 
     const newFeature = JSON.parse(JSON.stringify(feature)); // full copy bc error
 
-    // Calculate the difference (base - comparison)
-    // Also manage null values
-    const baseTime =
-      baseTimeLookup[h3Index] !== undefined && baseTimeLookup[h3Index] !== null
-        ? baseTimeLookup[h3Index]
-        : MAX_TRAVEL_TIME;
-
-    const compTime =
-      compTimeLookup[h3Index] !== undefined && compTimeLookup[h3Index] !== null
-        ? compTimeLookup[h3Index]
-        : MAX_TRAVEL_TIME;
-
-    // Flag for cells with no data from either source
-    if (baseTime === MAX_TRAVEL_TIME && compTime === MAX_TRAVEL_TIME) {
-      newFeature.properties.diff_time = null;
-      newFeature.properties.no_data = true;
-    } else {
-      newFeature.properties.diff_time = baseTime - compTime;
-      newFeature.properties.no_data = false;
-    }
-
+    newFeature.properties.diff_time = baseTimeLookup[h3Index] - compTimeLookup[h3Index];
     return newFeature;
   });
-
-  // Create a new GeoJSON object with the difference data
+  
+  // Make the new GeoJSON
   const diffGeoJSON = {
     type: "FeatureCollection",
     features: diffFeatures,
   };
 
-  // Update the data source with the new calculated differences
   map.getSource("res8-data").setData(diffGeoJSON);
 
-  // Update the colors based on the new difference data
-  updateDifferenceColors();
+  // update the filter
+  map.setFilter("res8-poly", ["!=", ["get", "diff_time"], null]);
 
-  // Show the layer again with the new data
-  map.setLayoutProperty("res8-poly", "visibility", "visible");
+  map.setFilter("super-point", [
+    "in",
+    ["get", "brand"],
+    ["literal", [baseSelection.chain, compSelection.chain]],
+  ]);
+
+  // use new colours
+  updateDifferenceColors();
+};
+// New colours with breakpoint for difference
+const updateDifferenceColors = () => {
+  // Collect all difference values
+  let diffValues = [];
+  traveltimesjson.features.forEach((feature) => {
+    console.log(feature.properties.diff_time)
+    if (
+      feature.properties.diff_time !== undefined &&
+      feature.properties.diff_time !== null
+    ) {
+      diffValues.push(feature.properties.diff_time);
+    }
+  });
+
+  // Range
+  const minDiff = Math.min(...diffValues);
+  const maxDiff = Math.max(...diffValues);
+
+  // Create breakpoints
+  const breakpoint1 = minDiff / 2;
+  const breakpoint2 = 0;
+  const breakpoint3 = maxDiff / 3;
+  const breakpoint4 = (2 * maxDiff) / 3;
+
+  map.setPaintProperty("res8-poly", "fill-color", [
+    "step",
+    ["get", "diff_time"],
+    "#1a9641", // Dark green
+    breakpoint1,
+    "#a6d96a", // Light green
+    breakpoint2,
+    "#ffffbf", // Yellow
+    breakpoint3,
+    "#fdae61", // Orange
+    breakpoint4,
+    "#d7191c", // Red
+  ]);
+
+  // Update the legend
+  updateLegendComparison(
+    minDiff,
+    breakpoint1,
+    breakpoint2,
+    breakpoint3,
+    breakpoint4,
+    maxDiff
+  );
 };
 
 const updateLegendComparison = (min, b1, b2, b3, b4, max) => {
@@ -148,30 +180,21 @@ const updateLegendComparison = (min, b1, b2, b3, b4, max) => {
   const legend = document.getElementById("legend");
   legend.innerHTML = "<h6>travel time difference</h6>";
 
-  const formattedMin = Math.floor(min);
-  const formattedB1 = Math.floor(b1);
-  const formattedB3 = Math.ceil(b3);
-  const formattedB4 = Math.ceil(b4);
-  const formattedMax = Math.ceil(max);
-
   const legendlabels = [
-    formattedMin + " to " + formattedB1 + " min faster",
-    formattedB1 + " to 0 min faster",
-    "0 to " + formattedB3 + " min slower",
-    formattedB3 + " to " + formattedB4 + " min slower",
-    formattedB4 + " to " + formattedMax + " min slower",
-    "No comparison data available"
+    min + " to " + b1 + " min faster",
+    b1 + " to " + b2 + " min faster",
+    b2 + " to " + b3 + " min slower",
+    b3 + " to " + b4 + " min slower",
+    b4 + " to " + max + " min slower",
   ];
-  
+  // maybe declare outside the function if I want to change?
   const legendcolors = [
     "#1a9641", // Dark green
     "#a6d96a", // Light green
     "#ffffbf", // Yellow
     "#fdae61", // Orange
     "#d7191c", // Red
-    "#cccccc"  // Grey for null values
   ];
-
   // Add items to legend
   legendlabels.forEach((label, i) => {
     const color = legendcolors[i];
@@ -192,108 +215,107 @@ const updateLegendComparison = (min, b1, b2, b3, b4, max) => {
   });
 };
 
+const updateComparisonFilter = (chain, mode) => {
+  // Update the comparisons on click for the filter mode
+  compSelection.chain = chain;
+  compSelection.mode = mode;
 
-// New colours with breakpoint for difference
-const updateDifferenceColors = () => {
-  let diffValues = [];
+  if (
+    baseSelection.chain !== null &&
+    baseSelection.chain !== "0" &&
+    compSelection.chain !== null &&
+    compSelection.chain !== "0"
+  ) {
+    calculateDifference();
+  }
+};
 
-  const currentData = map.getSource("res8-data")._data;
+// Moved regular legend
+const updateLegendRegular = () => {
+  // Clear legend
+  const legend = document.getElementById("legend");
+  legend.innerHTML = "<h6>travel time</h6>";
 
-  // Collect all valid difference values
-  currentData.features.forEach((feature) => {
+  // Get all travel times for the current selection
+  let ttimes = [];
+
+  traveltimesjson.features.forEach((feature) => {
+    const props = feature.properties;
     if (
-      feature.properties.diff_time !== undefined &&
-      feature.properties.diff_time !== null &&
-      !feature.properties.no_data
+      props.brand === baseSelection.chain &&
+      props.transport_mode === baseSelection.mode
     ) {
-      diffValues.push(feature.properties.diff_time);
+      if (props.travel_time !== undefined && props.travel_time !== null) {
+        ttimes.push(props.travel_time);
+      }
     }
   });
 
-  if (diffValues.length === 0) {
-    console.warn("No difference values found to calculate color breaks");
-    // Instead of returning, set a simple color scheme
+  // If we have travel times, calculate quartiles
+  if (ttimes.length > 0) {
+    const q1 = quantile(ttimes, 0.25);
+    const q2 = quantile(ttimes, 0.4);
+    const q3 = quantile(ttimes, 0.6);
+    const q4 = quantile(ttimes, 0.8);
+    const upper = Math.max.apply(null, ttimes);
+
+    // Define legend labels and colors (as in original code)
+    let legendlabels = [
+      "0-" + Math.floor(q1 - 1) + " minutes",
+      Math.floor(q1) + "-" + Math.floor(q2 - 1) + " minutes",
+      Math.floor(q2) + "-" + Math.floor(q3 - 1) + " minutes",
+      Math.floor(q3) + "-" + Math.floor(q4 - 1) + " minutes",
+      Math.floor(q4) + "-" + Math.floor(upper - 1) + " minutes",
+      Math.floor(upper) + "+ minutes",
+    ];
+
+    const legendcolors = [
+      "#fee5d9",
+      "#fcbba1",
+      "#fc9272",
+      "#fb6a4a",
+      "#de2d26",
+      "#a50f15",
+    ];
+
+    // Rebuild the legend
+    legendlabels.forEach((label, i) => {
+      const color = legendcolors[i];
+
+      const item = document.createElement("div");
+      const key = document.createElement("span");
+
+      key.className = "legend-key";
+      key.style.backgroundColor = color;
+
+      const value = document.createElement("span");
+      value.innerHTML = `${label}`;
+
+      item.appendChild(key);
+      item.appendChild(value);
+
+      legend.appendChild(item);
+    });
+
+    // Update the map layer colors
     map.setPaintProperty("res8-poly", "fill-color", [
-      "case",
-      ["==", ["get", "no_data"], true],
-      "#cccccc", // Grey for no data
-      "#ffffbf", // Yellow default for areas with data but no calculated diff
-    ]);
-
-    map.setPaintProperty("res8-poly", "fill-opacity", [
-      "case",
-      ["boolean", ["feature-state", "hover"], false],
-      1, // opaque when hovered on
-      0.5, // semi-transparent when not hovered on
-    ]);
-
-    // Update legend with simple message
-    const legend = document.getElementById("legend");
-    legend.innerHTML = "<h6>travel time difference</h6>";
-
-    const item = document.createElement("div");
-    const key = document.createElement("span");
-    key.className = "legend-key";
-    key.style.backgroundColor = "#cccccc";
-    const value = document.createElement("span");
-    value.innerHTML = "No comparison data available";
-    item.appendChild(key);
-    item.appendChild(value);
-    legend.appendChild(item);
-
-    // Make sure the layer is visible
-    map.setLayoutProperty("res8-poly", "visibility", "visible");
-    return;
-  }
-
-  // Range
-  const minDiff = Math.min(...diffValues);
-  const maxDiff = Math.max(...diffValues);
-
-  // Create breakpoints
-  const breakpoint1 = minDiff / 2;
-  const breakpoint2 = 0;
-  const breakpoint3 = maxDiff / 3;
-  const breakpoint4 = (2 * maxDiff) / 3;
-
-  map.setPaintProperty("res8-poly", "fill-color", [
-    "case",
-    ["==", ["get", "no_data"], true],
-    "#cccccc", // Grey for null
-    [
       "step",
-      ["get", "diff_time"],
-      "#1a9641", // Dark green
-      breakpoint1,
-      "#a6d96a", // Light green
-      breakpoint2,
-      "#ffffbf", // Yellow
-      breakpoint3,
-      "#fdae61", // Orange
-      breakpoint4,
-      "#d7191c", // Red
-    ],
-  ]);
-  map.setPaintProperty("res8-poly", "fill-opacity", [
-    "case",
-    ["boolean", ["feature-state", "hover"], false],
-    1, // opaque when hovered on
-    0.5, // semi-transparent when not hovered on
-  ]);
-
-  // Update the legend
-  updateLegendComparison(
-    minDiff,
-    breakpoint1,
-    breakpoint2,
-    breakpoint3,
-    breakpoint4,
-    maxDiff
-  );
-
-  // Always ensure the layer is visible
-  map.setLayoutProperty("res8-poly", "visibility", "visible");
+      ["get", "travel_time"],
+      "#fee5d9",
+      q1,
+      "#fcbba1",
+      q2,
+      "#fc9272",
+      q3,
+      "#fb6a4a",
+      q4,
+      "#de2d26",
+      upper,
+      "#a50f15",
+    ]);
+  }
 };
+
 map.on("load", () => {
   // load custom image into the map style
   map.loadImage(
@@ -561,44 +583,36 @@ map.on("load", () => {
 
       // handle clicking on a hexgrid item
       map.on("click", "res8-poly", (e) => {
-        // Use the comparisonMode flag to determine which mode we're in
-        if (!comparisonMode) {
-          // Regular mode
-          const travel_time = e.features[0].properties.travel_time;
-          const sel_travel_mode = $(".iconfilter-clicked:not([id$='Comp'])");
+        // regular mode
+        const coordinates = e.features[0].geometry.coordinates.slice();
+        const travel_time = e.features[0].properties.travel_time;
 
-          if (sel_travel_mode.length >= 1) {
-            const pieces = sel_travel_mode[0].id.split("btn");
-            if (travel_time !== undefined && travel_time !== null) {
-              $("#click-info").html(
-                "Travel time to " +
-                  $("#chain-select").val() +
-                  " by " +
-                  pieces[1] +
-                  " is " +
-                  travel_time +
-                  "m."
-              );
-            } else {
-              $("#click-info").html(
-                "Travel time to " +
-                  $("#chain-select").val() +
-                  " by " +
-                  pieces[1] +
-                  " is > 120m or could not be estimated."
-              );
-            }
+        const sel_travel_mode = $(".iconfilter-clicked");
+        if (sel_travel_mode.length == 1) {
+          const pieces = sel_travel_mode[0].id.split("btn"); // icons are named with convention btnWalk, btnTransit etc
+          if (travel_time !== undefined) {
+            $("#click-info").html(
+              "Travel time to " +
+                $("#chain-select").val() +
+                " by " +
+                pieces[1] +
+                " is " +
+                travel_time +
+                "m."
+            );
+          } else {
+            $("#click-info").html(
+              "Travel time to " +
+                $("#chain-select").val() +
+                " by " +
+                pieces[1] +
+                " is > 120m or could not be estimated."
+            );
           }
         } else {
-          // Comparison mode
+          // Comparison mode handler :)
           const diff_time = e.features[0].properties.diff_time;
-          const no_data = e.features[0].properties.no_data;
-
-          if (no_data === true) {
-            $("#click-info").html(
-              "Comparison data not available for this location."
-            );
-          } else if (diff_time !== undefined && diff_time !== null) {
+          if (diff_time !== undefined && diff_time !== null) {
             let comparisonText = "";
             if (diff_time < 0) {
               comparisonText =
@@ -910,9 +924,6 @@ map.on("load", () => {
                 compSelection.chain !== "0"
               ) {
                 calculateDifference();
-              } else {
-                // Hiding until selection
-                map.setLayoutProperty("res8-poly", "visibility", "none");
               }
             } else {
               // Hide comparison controls
@@ -927,16 +938,9 @@ map.on("load", () => {
                 .getElementById("compareToggle")
                 .classList.add("btn-outline-secondary");
 
-              map.getSource("res8-data").setData(traveltimesjson);
               // Restore regular display if a chain is selected
               if (baseSelection.chain !== null && baseSelection.chain !== "0") {
-                // Make sure to hide the layer first to prevent flickering
-                map.setLayoutProperty("res8-poly", "visibility", "none");
-                // Then update the filter and it will be shown by updateFilter
                 updateFilter(baseSelection.chain, baseSelection.mode);
-              } else {
-                // If no chain is selected, hide the layer
-                map.setLayoutProperty("res8-poly", "visibility", "none");
               }
             }
           });
