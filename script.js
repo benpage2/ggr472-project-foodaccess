@@ -143,6 +143,32 @@ const calculateDifference = () => {
   map.setLayoutProperty("res8-poly", "visibility", "visible");
 };
 
+const updateLegendComparison = (minDiff, breakpoint1, breakpoint2, breakpoint3, breakpoint4, maxDiff) => {
+  const legend = document.getElementById("legend");
+  legend.innerHTML = "<h6>Travel Time Difference</h6>";
+
+  const legendItems = [
+    { color: "#1a9641", label: `≤ ${breakpoint1} minutes` },
+    { color: "#a6d96a", label: `${breakpoint1} to ${breakpoint2} minutes` },
+    { color: "#ffffbf", label: `${breakpoint2} to ${breakpoint3} minutes` },
+    { color: "#fdae61", label: `${breakpoint3} to ${breakpoint4} minutes` },
+    { color: "#d7191c", label: `≥ ${breakpoint4} minutes` },
+    { color: "#cccccc", label: "No comparison data available" }
+  ];
+
+  legendItems.forEach(item => {
+    const legendItem = document.createElement("div");
+    const key = document.createElement("span");
+    key.className = "legend-key";
+    key.style.backgroundColor = item.color;
+    const value = document.createElement("span");
+    value.innerHTML = item.label;
+    legendItem.appendChild(key);
+    legendItem.appendChild(value);
+    legend.appendChild(legendItem);
+  });
+};
+
 // New colours with breakpoint for difference
 const updateDifferenceColors = () => {
   let diffValues = [];
