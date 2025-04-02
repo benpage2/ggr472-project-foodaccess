@@ -143,31 +143,55 @@ const calculateDifference = () => {
   map.setLayoutProperty("res8-poly", "visibility", "visible");
 };
 
-const updateLegendComparison = (minDiff, breakpoint1, breakpoint2, breakpoint3, breakpoint4, maxDiff) => {
+const updateLegendComparison = (min, b1, b2, b3, b4, max) => {
+  // Clear legend
   const legend = document.getElementById("legend");
-  legend.innerHTML = "<h6>Travel Time Difference</h6>";
+  legend.innerHTML = "<h6>travel time difference</h6>";
 
-  const legendItems = [
-    { color: "#1a9641", label: `≤ ${breakpoint1} minutes` },
-    { color: "#a6d96a", label: `${breakpoint1} to ${breakpoint2} minutes` },
-    { color: "#ffffbf", label: `${breakpoint2} to ${breakpoint3} minutes` },
-    { color: "#fdae61", label: `${breakpoint3} to ${breakpoint4} minutes` },
-    { color: "#d7191c", label: `≥ ${breakpoint4} minutes` },
-    { color: "#cccccc", label: "No comparison data available" }
+  const formattedMin = Math.floor(min);
+  const formattedB1 = Math.floor(b1);
+  const formattedB3 = Math.ceil(b3);
+  const formattedB4 = Math.ceil(b4);
+  const formattedMax = Math.ceil(max);
+
+  const legendlabels = [
+    formattedMin + " to " + formattedB1 + " min faster",
+    formattedB1 + " to 0 min faster",
+    "0 to " + formattedB3 + " min slower",
+    formattedB3 + " to " + formattedB4 + " min slower",
+    formattedB4 + " to " + formattedMax + " min slower",
+    "No comparison data available"
+  ];
+  
+  const legendcolors = [
+    "#1a9641", // Dark green
+    "#a6d96a", // Light green
+    "#ffffbf", // Yellow
+    "#fdae61", // Orange
+    "#d7191c", // Red
+    "#cccccc"  // Grey for null values
   ];
 
-  legendItems.forEach(item => {
-    const legendItem = document.createElement("div");
+  // Add items to legend
+  legendlabels.forEach((label, i) => {
+    const color = legendcolors[i];
+
+    const item = document.createElement("div");
     const key = document.createElement("span");
+
     key.className = "legend-key";
-    key.style.backgroundColor = item.color;
+    key.style.backgroundColor = color;
+
     const value = document.createElement("span");
-    value.innerHTML = item.label;
-    legendItem.appendChild(key);
-    legendItem.appendChild(value);
-    legend.appendChild(legendItem);
+    value.innerHTML = `${label}`;
+
+    item.appendChild(key);
+    item.appendChild(value);
+
+    legend.appendChild(item);
   });
 };
+
 
 // New colours with breakpoint for difference
 const updateDifferenceColors = () => {
