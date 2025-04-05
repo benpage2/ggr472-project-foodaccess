@@ -1,4 +1,16 @@
 mapboxgl.accessToken = 'pk.eyJ1IjoiZHJpbm5pcmQiLCJhIjoiY201b2RyYXRhMGt1YTJvcHQ4ZjU4dDYycSJ9.jHNRKSu149-F5s157m1GwA'; // Add default public map token from your Mapbox account
+
+// Global Variables
+let traveltimesjson;
+
+// Definig all transport modes as a single object
+const transportModes = [
+  { id: 'btnWalk', mode: 'walk' },
+  { id: 'btnBike', mode: 'bike' },
+  { id: 'btnTransit', mode: 'transit' },
+  { id: 'btnCar', mode: 'car' }
+];
+
 const map = new mapboxgl.Map({
     container: 'my-map', // map container ID
     style: 'mapbox://styles/mapbox/streets-v11', // style URL
@@ -35,8 +47,6 @@ const quantile = (arr, q) => {
     }
 };
 
-let traveltimesjson; // need this variable in several places, define it in the outermost scope
-
 const updateFilter = (chain, mode) => {
     map.setFilter('res8-poly', ['all', ['all', 
         // ['has', 'travel_time'],
@@ -46,13 +56,31 @@ const updateFilter = (chain, mode) => {
     ]]);
 }
 
-// Definig all transport modes as a single object
-const transportModes = [
-  { id: 'btnWalk', mode: 'walk' },
-  { id: 'btnBike', mode: 'bike' },
-  { id: 'btnTransit', mode: 'transit' },
-  { id: 'btnCar', mode: 'car' }
-];
+// get unique brands from the superjson
+const extractBrands = (supermarketjson) => {
+  brandLst = [];
+  // get a set of unique grocery chains
+  let supermarkets = supermarketjson.features;
+  supermarkets.forEach((label, i) => {
+      let item = supermarkets[i];
+      if(item.properties.brand !== undefined && item.properties.brand !== null) {
+          if(!brandLst.includes(item.properties.brand)) {
+              brandLst.push(item.properties.brand)
+          }
+      }
+  });
+  return brandLst.sort()
+}
+
+// populate a dropdown with brands
+// a f-n b/c will be used twice
+const populateDropdown = (brandList, dropDownElement) => {
+  brandList.forEach((label) => {
+    let opt = document.createElement('option');
+    opt.text = opt.value = label;
+    dropDownElement.add(opt)
+  })
+}
 
 
 map.on('load', () => {
@@ -105,14 +133,6 @@ map.on('load', () => {
         data: 'https://drinnnird-uoft.github.io/ggr472-project-foodaccess/data/all_travel_times_res8.geojson',
         'generateId' : true
     })
-
-    // map.addSource('res8-data', {
-    //     type: 'vector',
-    //     url: 'mapbox://drinnird.9u36r108',
-    //     promoteId: {"all_travel_times_res8-2sh0kd":"id"}
-    // })
-
-    // draw features from geoJSON source files
 
     // draw boundary as grey lines
     map.addLayer({
@@ -375,16 +395,15 @@ $(document).ready(function() {
     // hide legend until a layer is selected
     $("#legend").hide();
 
-
     // Click handlers fror transport mode buttons
-    // Defined in transportModes
+    // defined in transportModes
     transportModes.forEach(transport => {
       $(`#${transport.id}`).click(function() {
           // Remove highlighting
           transportModes.forEach(t => {
               $(`#${t.id}`).removeClass("iconfilter-clicked");
           })
-          
+
           // Add highlighting to clicked button
           $(this).addClass("iconfilter-clicked");
           
@@ -404,24 +423,8 @@ $(document).ready(function() {
     .then(response => {
         superjson = response;
         // get a set of unique grocery chains
-        let supermarkets = superjson.features;
 
-        supermarkets.forEach((label, i) => {
-            let item = supermarkets[i];
-            if(item.properties.brand !== undefined && item.properties.brand !== null) {
-                if(!brands.includes(item.properties.brand)) {
-                    brands.push(item.properties.brand)
-                }
-            }
-        });
-
-        brands.sort();
-
-        brands.forEach((label, i) => {
-            let opt = document.createElement('option');
-            opt.text = opt.value = label;
-            brandselect.add(opt)
-        })
-
+        brands = extractBrands(superjson)
+        populateDropdown(brands, brandselect)
     });
 })
