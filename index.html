@@ -47,7 +47,7 @@
         <!-- split into main view area and sidebar -->
         <div class="row">
             <!-- main area -->
-            <div class="col-9">
+            <div class="col-8">
                 <div class="row">
                     <div class="col text-center">
                         <!-- banner and text header -->
@@ -76,44 +76,54 @@
                 <div class="row header-spacer">
                     <div class="col"><!-- this is for spacing only --></div>
                 </div>
-                <div class="row">
-                    <div class="col"><button type="button" class="btn btn-primary btn-sm" id="returnbutton">Zoom Out</button><br />Transit mode:</div>
-                </div>
-                <div class="row">
-                    <div class="col">
-                        <!-- transit filter images from bootstrap SVG -->
-                        <button id="btnWalk" class="bi-person-walking iconfilter"></button>
-                        <button id="btnBike" class="bi-bicycle iconfilter"></button>
-                        <button id="btnTransit" class="bi-bus-front iconfilter  iconfilter-clicked"></button>
-                        <button id="btnCar" class="bi-car-front iconfilter"></button>
+                <div class = "card mb-3">
+                    <div class = "card-header">
+                        Selection Controls
                     </div>
-                </div>
-                <div class="row">
-                    <div class="col"><label for="chains">Choose a grocery chain:</label>
-                        <select id="chain-select" name="chains">
-                            <option value="0">Select...</option>
-                            <!-- add options with javascript -->
-                        </select>
-
-                    </div>
-                </div>
-                <hr />
-                <div class="row">
-                    <div class="col" id="click-info">Placeholder for map information when map clicked</div>
-                </div>
-                <div class="row">
-                    <!-- LEGEND -->
-                    <div class="col">
-                        <div id='legend' class='col-6 legend'>
-                            <h6>travel time</h6>
-                            <!-- Contents of legend will now be added here -->
+                    <div class = "card-body">
+                        <div class="row">
+                            <div class="col">
+                                <button type="button" class="btn btn-primary btn-sm" id="returnbutton">
+                                    Zoom Out
+                                </button>
+                                <br />Transit mode:
+                            </div>
                         </div>
-                        <div class="col-12"></div>
+                        <div class="row">
+                            <div class="btn-group" role="group" aria-label="...">
+                                <!-- transit filter images from bootstrap SVG -->
+                                <button id="btnWalk" class="bi-person-walking iconfilter"></button>
+                                <button id="btnBike" class="bi-bicycle iconfilter"></button>
+                                <button id="btnTransit" class="bi-bus-front iconfilter  iconfilter-clicked"></button>
+                                <button id="btnCar" class="bi-car-front iconfilter"></button>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col"><label for="chains">Choose a grocery chain:</label>
+                                <select id="chain-select" name="chains">
+                                    <option value="0">Select...</option>
+                                    <!-- add options with javascript -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <hr />
+                    <div class="row">
+                        <div class="col" id="click-info">Placeholder for map information when map clicked</div>
+                    </div>
+                    <div class="row">
+                        <!-- LEGEND -->
+                        <div class="col">
+                            <div id='legend' class='col-6 legend'>
+                                <h6>travel time</h6>
+                                <!-- Contents of legend will now be added here -->
+                            </div>
+                            <div class="col-12"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-
     </div>
     <div class="row">
         <div class="col text-center">~</div>
