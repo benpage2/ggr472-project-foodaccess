@@ -23,6 +23,7 @@ const map = new mapboxgl.Map({
 
 let hoveredPolygonId = null; // set variable to hold ID of polygon hovered on, initialize to null
 
+
 // function to stort ascending
 const asc = arr => arr.sort((a, b) => a - b);
 

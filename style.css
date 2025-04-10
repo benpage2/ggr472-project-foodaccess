@@ -2,6 +2,10 @@
     height: 600px; /* height must be specified or map will not appear */
 }
 
+.main-heading{
+    margin-top: 20px;
+}
+
 .iconfilter {
     font-size: 1.5rem;
 }
