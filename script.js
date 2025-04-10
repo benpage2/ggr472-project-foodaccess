@@ -11,11 +11,14 @@ const transportModes = [
   { id: 'btnCar', mode: 'car' }
 ];
 
+const homeCoords = [-79.37, 43.71]
+const homeZoom = 10
+
 const map = new mapboxgl.Map({
     container: 'my-map', // map container ID
     style: 'mapbox://styles/mapbox/streets-v11', // style URL
-    center: [-79.41, 43.7], // starting position [lng, lat]
-    zoom: 10
+    center: homeCoords, // starting position [lng, lat]
+    zoom: homeZoom
 });
 
 const returnbutton = document.getElementById("returnbutton")
@@ -82,6 +85,44 @@ const populateDropdown = (brandList, dropDownElement) => {
   })
 }
 
+// Home button class based on mapBox IControl example
+class HomeButtonControl {
+    constructor() {
+      this._map = null;
+      this._container = null;
+      this._homeCoords = homeCoords;
+      this._homeZoom = homeZoom;
+    }
+  
+    onAdd(map) {
+      this._map = map;
+      this._container = document.createElement('div');
+      this._container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+      
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.title = 'Reset Map View';
+      button.className = 'bi bi-house-door';
+      button.style.padding = '6px';
+      button.style.fontSize = '16px';
+      
+      button.addEventListener('click', () => {
+        this._map.flyTo({
+          center: this._homeCoords,
+          zoom: this._homeZoom,
+          essential: true
+        });
+      });
+      
+      this._container.appendChild(button);
+      return this._container;
+    }
+  
+    onRemove() {
+      this._container.parentNode.removeChild(this._container);
+      this._map = null;
+    }
+}
 
 map.on('load', () => {
 
@@ -107,6 +148,8 @@ map.on('load', () => {
 
     //Add zoom and rotation controls to the map.
     map.addControl(new mapboxgl.NavigationControl());
+    // Add home button
+    map.addControl(new HomeButtonControl(), 'top-right');
     // add geoJSON source files
     // torboundary-data - toronto boundary line
     // torneigh-data is toronto neighbourhoods (polygons)
