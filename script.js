@@ -21,18 +21,8 @@ const map = new mapboxgl.Map({
     zoom: homeZoom
 });
 
-const returnbutton = document.getElementById("returnbutton")
-
 let hoveredPolygonId = null; // set variable to hold ID of polygon hovered on, initialize to null
 
-// listener to zoom the map back to full extents
-returnbutton.addEventListener('click', (e) => {
-    map.flyTo({
-        center: [-79.41, 43.7],
-        zoom: 10,
-        essential: true
-    })
-})
 
 // function to stort ascending
 const asc = arr => arr.sort((a, b) => a - b);
