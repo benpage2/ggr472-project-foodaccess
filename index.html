@@ -53,21 +53,25 @@
                 </h1>
             </div>
         </div>
+        <!-- Instructions -->
+        <div class="row">
+            <div class="row small">
+                <div class="col"><a href='#' data-bs-toggle="collapse" data-bs-target="#instructions">hide/show</a>
+                    instructions
+                </div>
+            </div>
+            <div class="row">
+                <div id="instructions" class="col collapse show">Choose a grocery store chain from the drop-down box
+                    to investigate transit times across the city to this grocery store chain. Each time you select a mode of transport 
+                    or a grocery store chain, the heatmap will update with travel times. Click on a hex grid cell to see the 
+                    travel time from that hex cell to the nearest example of the grocery chain and transport method you have selected. 
+                </div>
+            </div>
+        </div>
+        
         <div class="row">
             <!-- main area -->
-            <div class="col-8">
-                <div class="row small">
-                    <div class="col"><a href='#' data-bs-toggle="collapse" data-bs-target="#instructions">hide/show</a>
-                        instructions
-                    </div>
-                </div>
-                <div class="row">
-                    <div id="instructions" class="col collapse show">Choose a grocery store chain from the drop-down box
-                        to investigate transit times across the city to this grocery store chain. Each time you select a mode of transport 
-                        or a grocery store chain, the heatmap will update with travel times. Click on a hex grid cell to see the 
-                        travel time from that hex cell to the nearest example of the grocery chain and transport method you have selected. 
-                    </div>
-                </div>
+            <div class="col-9">
                 <!-- MAP -->
                 <div class="row">
                     <div id="my-map" class="map-container"></div>
