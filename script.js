@@ -2,6 +2,11 @@ mapboxgl.accessToken = 'pk.eyJ1IjoiZHJpbm5pcmQiLCJhIjoiY201b2RyYXRhMGt1YTJvcHQ4Z
 
 // Global Variables
 let traveltimesjson;
+let traveltimesfilter;
+
+const homeCoords = [-79.37, 43.71];
+const homeZoom = 10;
+
 
 // Definig all transport modes as a single object
 const transportModes = [
@@ -10,9 +15,6 @@ const transportModes = [
   { id: 'btnTransit', mode: 'transit' },
   { id: 'btnCar', mode: 'car' }
 ];
-
-const homeCoords = [-79.37, 43.71]
-const homeZoom = 10
 
 const map = new mapboxgl.Map({
     container: 'my-map', // map container ID
@@ -276,7 +278,7 @@ map.on('load', () => {
     .then(response => response.json())
     .then(response => {
         traveltimesjson = response;
-
+        
         // get quartiles for choropleth scaling
         let ttimes = [];
 
@@ -428,23 +430,25 @@ $(document).ready(function() {
     // hide legend until a layer is selected
     $("#legend").hide();
 
-    // Click handlers fror transport mode buttons
-    // defined in transportModes
-    transportModes.forEach(transport => {
-      $(`#${transport.id}`).click(function() {
-          // Remove highlighting
-          transportModes.forEach(t => {
-              $(`#${t.id}`).removeClass("iconfilter-clicked");
-          })
+    function handleTransportModeClick(transportMode){
+        return function(){
+            transportModes.forEach(t => {
+                $(`#${t.id}`).removeClass("iconfilter-clicked");
+            });
+            
+            $(this).addClass("iconfilter-clicked");
+            
+            const chain = $("#chain-select").find(":selected").val();
+            updateFilter(chain, transportMode);
+        };
+    }
 
-          // Add highlighting to clicked button
-          $(this).addClass("iconfilter-clicked");
-          
-          // Get current chain selection and update filter
-          const chain = $("#chain-select").find(":selected").val();
-          updateFilter(chain, transport.mode);
-      });
-  });
+    // Click handlers fror transport mode buttons
+    $("#btnWalk").click(handleTransportModeClick("walk"));
+    $("#btnBike").click(handleTransportModeClick("bike"));
+    $("#btnTransit").click(handleTransportModeClick("transit"));
+    $("#btnCar").click(handleTransportModeClick("car"));
+
 
     // populate the brands dropdown with brands from the geoJSON file
     let superjson;
