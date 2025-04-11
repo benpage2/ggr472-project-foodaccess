@@ -9,12 +9,6 @@ const homeZoom = 10;
 
 
 // Definig all transport modes as a single object
-const transportModes = [
-  { id: 'btnWalk', mode: 'walk' },
-  { id: 'btnBike', mode: 'bike' },
-  { id: 'btnTransit', mode: 'transit' },
-  { id: 'btnCar', mode: 'car' }
-];
 
 const map = new mapboxgl.Map({
     container: 'my-map', // map container ID
@@ -44,8 +38,6 @@ const quantile = (arr, q) => {
 
 const updateFilter = (chain, mode) => {
     map.setFilter('res8-poly', ['all', ['all', 
-        // ['has', 'travel_time'],
-        // ['!=', ['get', 'travel_time'], null],
         ['==', ['get', 'brand'], chain],
      ['==', ['get', 'transport_mode'], mode]
     ]]);
@@ -432,10 +424,7 @@ $(document).ready(function() {
 
     function handleTransportModeClick(transportMode){
         return function(){
-            transportModes.forEach(t => {
-                $(`#${t.id}`).removeClass("iconfilter-clicked");
-            });
-            
+            $(".iconfilter").removeClass("iconfilter-clicked");
             $(this).addClass("iconfilter-clicked");
             
             const chain = $("#chain-select").find(":selected").val();
