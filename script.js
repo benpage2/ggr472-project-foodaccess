@@ -1,14 +1,9 @@
-mapboxgl.accessToken = 'pk.eyJ1IjoiZHJpbm5pcmQiLCJhIjoiY201b2RyYXRhMGt1YTJvcHQ4ZjU4dDYycSJ9.jHNRKSu149-F5s157m1GwA'; // Add default public map token from your Mapbox account
-
+mapboxgl.accessToken = 'pk.eyJ1IjoiZHJpbm5pcmQiLCJhIjoiY201b2RyYXRhMGt1YTJvcHQ4ZjU4dDYycSJ9.jHNRKSu149-F5s157m1GwA'
 // Global Variables
 let traveltimesjson;
-let traveltimesfilter;
 
 const homeCoords = [-79.37, 43.71];
 const homeZoom = 10;
-
-
-// Definig all transport modes as a single object
 
 const map = new mapboxgl.Map({
     container: 'my-map', // map container ID
@@ -36,13 +31,6 @@ const quantile = (arr, q) => {
     }
 };
 
-const updateFilter = (chain, mode) => {
-    map.setFilter('res8-poly', ['all', ['all', 
-        ['==', ['get', 'brand'], chain],
-     ['==', ['get', 'transport_mode'], mode]
-    ]]);
-}
-
 // get unique brands from the superjson
 const extractBrands = (supermarketjson) => {
   brandLst = [];
@@ -68,6 +56,504 @@ const populateDropdown = (brandList, dropDownElement) => {
     dropDownElement.add(opt)
   })
 }
+
+function setupHoverInteractions() {
+    // Removing old hover interactions (else error)
+    map.off('mousemove', 'res8-poly');
+    map.off('mouseleave', 'res8-poly');
+
+    // Original mouse move
+    // set up a mousemove event handler to toggle a feature state on the heatmap layer
+    map.on('mousemove', 'res8-poly', (e) => {
+        map.getCanvas().style.cursor = 'pointer';
+        if (e.features.length > 0) {
+            if (hoveredPolygonId !== null) {
+                map.setFeatureState(
+                    { source: 'filtered-res8-data', id: hoveredPolygonId },
+                    { hover: false }
+                );
+            }
+            hoveredPolygonId = e.features[0].id;
+            map.setFeatureState(
+                { source: 'filtered-res8-data', id: hoveredPolygonId },
+                { hover: true }
+            );
+        }
+    });
+
+    // Original mouseleave 
+    // When the mouse leaves the heatmap layer, update the feature state of the
+    // previously hovered feature.
+    map.on('mouseleave', 'res8-poly', () => {
+        map.getCanvas().style.cursor = '';
+        if (hoveredPolygonId !== null) {
+            map.setFeatureState(
+                { source: 'filtered-res8-data', id: hoveredPolygonId },
+                { hover: false }
+            );
+        }
+        hoveredPolygonId = null;
+    });
+}
+
+function filterTravelTimes (chain, mode) {
+    // Exit if not loaded yet and log
+    if (!traveltimesjson) {
+        console.log("Travel time json not loaded - filterTravelTimes");
+        return;
+    }
+
+    let filteredGeojson = {
+        type: traveltimesjson.type,
+        name: "filtered_travel_times",
+        crs: traveltimesjson.crs,
+        features: []
+    };
+
+    filteredGeojson.features = traveltimesjson.features.filter(feature => {
+        const properties = feature.properties;
+
+        return properties.brand === chain && properties.transport_mode === mode;
+    });
+
+    return filteredGeojson
+}
+
+function getQuartiles(geojson){
+        // get quartiles for choropleth scaling
+        let ttimes = [];
+
+        geojson.features.forEach((label, i) => {
+            let feature = geojson.features[i];
+            let props = feature.properties;
+            // handle selected brand here
+            let travtime = props.travel_time;
+            // Don't push nulls to array
+            if (travtime !== null && travtime !== undefined) {
+                ttimes.push(travtime);
+            }    
+        })
+        
+        // Rounded 
+        const q1 = Math.round(quantile(ttimes, 0.25));
+        const q2 = Math.round(quantile(ttimes, 0.4));
+        const q3 = Math.round(quantile(ttimes, 0.6));
+        const q4 = Math.round(quantile(ttimes, 0.8));
+        const upper = Math.round(Math.max.apply(null, ttimes));
+
+        return {q1, q2, q3, q4, upper}
+}
+
+function buildQuartLegend(bounds){
+    // build and render legend
+    // declare legend variable using legend div tag
+    const legend = document.getElementById("legend");
+
+    // Clear previous legend items
+    legend.innerHTML = '<h6>travel time</h6>';
+
+    let legendlabels = [
+        '0-' + (bounds.q1-1) + ' minutes',
+        bounds.q1 + '-' + (bounds.q2-1) + ' minutes',
+        bounds.q2 + '-' + (bounds.q3-1) + ' minutes',
+        bounds.q3 + '-' + (bounds.q4-1) + ' minutes',
+        bounds.q4 + '-' + (bounds.upper-1) + ' minutes',
+        bounds.upper + '+ minutes',
+        'No data available'
+    ]
+
+    const legendcolors = [
+        '#fee5d9',
+        '#fcbba1',
+        '#fc9272',
+        '#fb6a4a',
+        '#de2d26',
+        '#a50f15',
+        '#3f3f3f' //added null to the legend
+    ]
+
+    legendlabels.forEach((label, i) => {
+        const color = legendcolors[i];
+
+        const item = document.createElement('div') //each layer gets a 'row' - this isn't in the legend yet, we do this later
+        const key = document.createElement('span') //add a 'key' to the row. A key will be the colour circle
+
+        key.className = 'legend-key'; //the key will take on the shape and style properties defined in css
+        key.style.backgroundColor = color; // the background color is retreived from teh layers array
+
+        const value = document.createElement('span'); //add a value variable to the 'row' in the legend
+        value.innerHTML = `${label}`; //give the value variable text based on the label
+
+        item.appendChild(key); //add the key (colour cirlce) to the legend row
+        item.appendChild(value); //add the value to the legend row
+    
+        legend.appendChild(item); //add row to the legend
+    })
+
+    $("#legend").show();
+}
+
+function addQuartLayer(geojson, bounds){
+
+    // Removing old layer if it exsists
+    if (map.getLayer('res8-poly')) {
+        map.removeLayer('res8-poly');
+    }
+
+    // Making source
+    if (map.getSource('filtered-res8-data')) {
+        map.getSource('filtered-res8-data').setData(geojson);
+    } else {
+        map.addSource('filtered-res8-data', {
+            type: 'geojson',
+            data: geojson,
+            'generateId': true
+        });
+    }
+
+    map.addLayer({
+        'id': 'res8-poly', // kept name consitent for event handlers
+        'type': 'fill',
+        'source': 'filtered-res8-data',
+        'paint': {
+            "fill-color": [
+                "case", // case sets null value colour
+                ["==", ["get", "travel_time"], null],
+                "#3f3f3f",
+                ["step",
+                    ["get", "travel_time"],
+                    "#fee5d9",
+                    bounds.q1, "#fcbba1",
+                    bounds.q2, "#fc9272",
+                    bounds.q3, "#fb6a4a",
+                    bounds.q4, "#de2d26",
+                    bounds.upper, "#a50f15"
+                ]
+            ],
+            'fill-opacity': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                1,  // opaque when hovered on
+                0.5 // semi-transparent when not hovered on
+            ],
+            'fill-outline-color': 'white'
+        }
+    });
+    
+    // Getting hover to work again
+    setupHoverInteractions();
+
+}
+
+function updateTravelTimes(chain, mode) {
+    console.log('UpdateTravelTimes chain', chain)
+    console.log('UpdateTravelTimes mode', mode)
+    // Check if traveltimejson exists
+    if (!traveltimesjson) {
+        console.log("Travel time json not loaded - updateTravelTimes");
+        return null;
+    }
+
+    filteredGeojson = filterTravelTimes(chain, mode)
+    console.log(filteredGeojson)
+    bounds = getQuartiles(filteredGeojson)
+    console.log(bounds)
+    buildQuartLegend(bounds)
+    
+    // moved supermarket filter
+    map.setFilter('super-point', ['==', ['get','brand'], chain])
+
+    addQuartLayer(filteredGeojson, bounds)
+}
+
+function updateVisualization() {
+    // Is comparison switch
+    const isComparisonEnabled = $("#comparisonSwitch").prop("checked");
+    
+    const baseChain = $("#chain-select").val();
+    let baseMode = "transit"; // Default
+
+    // Handeling so many buttons is a pain,
+    // Similar to older implimentation
+    $(".iconfilter.base.iconfilter-clicked").each(function() {
+        baseMode = $(this).attr("id").replace("btn", "").toLowerCase();
+    });
+    
+    const compChain = $("#compChain-select").val();
+    
+    // Same as above, but for other mode
+    let compMode = "transit"; // Default
+    $(".iconfilter.comp.iconfilter-clicked").each(function() {
+        // Extract the mode from the button ID by removing "btn" and "Comp"
+        let buttonId = $(this).attr("id");
+        compMode = buttonId.replace("btn", "").replace("Comp", "").toLowerCase();
+    });
+    
+    // Stopping issues
+    if (!traveltimesjson) {
+        console.log("Travel time json not loaded - updateVisualization");
+        return;
+    }
+
+    console.log("- Base chain:", baseChain, "Base mode:", baseMode);
+    console.log("- Comparison enabled:", isComparisonEnabled);
+    console.log("- Comp chain:", compChain, "Comp mode:", compMode);
+
+    if (isComparisonEnabled){
+        console.log("Is comp mode")
+        // Preventing more issues
+        if (compChain === "0"){
+            console.log("No comp chain selected");
+            updateTravelTimes(baseChain, baseMode)
+        return;
+        }
+        updateComparisonMode(baseChain, baseMode, compChain, compMode)
+    }
+    else{
+        console.log("Is not comp mode")
+        if (baseChain === "0") {
+            console.log("No base chain selected");
+            return;
+        }
+        // Draw standard Map
+        updateTravelTimes(baseChain, baseMode)
+    }
+} 
+
+function createDifferenceJson(baseJson, compJson) {
+    // Create deep copy
+    const differenceJson = JSON.parse(JSON.stringify(baseJson));
+    
+    const compFeatureMap = {};
+    compJson.features.forEach(feature => {
+      const id = feature.properties.id;
+      if (id !== undefined) {
+        compFeatureMap[id] = feature;
+      }
+    });
+    
+    
+    
+    differenceJson.features.forEach(feature => {
+      const id = feature.properties.id;
+      
+      if (id !== undefined && compFeatureMap[id]) {
+        const compFeature = compFeatureMap[id];
+        
+        const baseTime = feature.properties.travel_time;
+        const compTime = compFeature.properties.travel_time;
+        
+        
+        // Calculate difference /  set to null 
+        if (baseTime === null || compTime === null) {
+          feature.properties.travel_time = null;
+        } else {
+          feature.properties.travel_time = baseTime - compTime;
+        }
+      } else {
+        // No matching feature found, sometimes happens?
+        feature.properties.travel_time = null;
+      }
+    });
+    
+    return differenceJson;
+  }
+
+function buildDiffLegend(bounds, baseChain, compChain){
+    const legend = document.getElementById("legend")
+
+    // Clear previous legend items
+    legend.innerHTML = '<h6>travel time</h6>';
+
+    const legendLabels = [
+        '20+ min closer to ' + baseChain,
+        '20-11 min closer to ' + baseChain,
+        '1-10 min closer to' + baseChain,
+        '0 min difference',
+        '1-9 min closer to ' + compChain,
+        '10-19 min closer to ' + compChain,
+        '20+ min closer to ' + compChain,
+        'No data available'
+    ];
+
+    const legendColors = [
+        '#4A148C', // deep purple
+        '#7B1FA2',
+        '#CE93D8',
+        '#FFFFFF',
+        '#FFCC80',
+        '#F57C00',
+        '#E65100',
+        '#3f3f3f' // ornage
+    ];
+
+    legendLabels.forEach((label, i) => {
+        const color = legendColors[i];
+
+        const item = document.createElement('div') //each layer gets a 'row' - this isn't in the legend yet, we do this later
+        const key = document.createElement('span') //add a 'key' to the row. A key will be the colour circle
+
+        key.className = 'legend-key'; //the key will take on the shape and style properties defined in css
+        key.style.backgroundColor = color; // the background color is retreived from teh layers array
+
+        const value = document.createElement('span'); //add a value variable to the 'row' in the legend
+        value.innerHTML = `${label}`; //give the value variable text based on the label
+
+        item.appendChild(key); //add the key (colour cirlce) to the legend row
+        item.appendChild(value); //add the value to the legend row
+    
+        legend.appendChild(item); //add row to the legend
+    })
+
+    $("#legend").show();
+}
+
+function addDiffLayer(geojson, bounds){
+
+    // Removing old layer if it exsists
+    if (map.getLayer('res8-poly')) {
+        map.removeLayer('res8-poly');
+    }
+
+    // Making source
+    if (map.getSource('filtered-res8-data')) {
+        map.getSource('filtered-res8-data').setData(geojson);
+    } else {
+        map.addSource('filtered-res8-data', {
+            type: 'geojson',
+            data: geojson,
+            'generateId': true
+        });
+    }
+    const legendColors = [
+        '#4A148C', // deep purple
+        '#7B1FA2',
+        '#CE93D8',
+        '#FFFFFF',
+        '#FFCC80',
+        '#F57C00',
+        '#E65100',
+        '#3f3f3f' // ornage
+    ];
+
+    map.addLayer({
+        'id': 'res8-poly', // kept name consistent for event handlers
+        'type': 'fill',
+        'source': 'filtered-res8-data',
+        'paint': {
+            "fill-color": [
+                "case", // case sets null value colour
+                ["==", ["get", "travel_time"], null],
+                legendColors[7], // Use the last color (#3f3f3f) for null values
+                ["step",
+                    ["get", "travel_time"],
+                    legendColors[0], // deep purple for values below lowerMin
+                    bounds.lowerMin, legendColors[1],
+                    bounds.lowerMid, legendColors[2],
+                    bounds.midpoint, legendColors[3], // White at the midpoint
+                    bounds.upperMid, legendColors[4],
+                    bounds.upperMax, legendColors[6]  // Use E65100 for values >= upperMax
+                ]
+            ],
+            'fill-opacity': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                1,  // opaque when hovered on
+                0.5 // semi-transparent when not hovered on
+            ],
+            'fill-outline-color': 'white'
+        }
+    });
+    
+    // Getting hover to work again
+    setupHoverInteractions();
+}
+
+function updateComparisonMode(baseChain, baseMode, compChain, compMode) {
+    if (!traveltimesjson) {
+        console.log("Travel time json not loaded - updateComparisonMode");
+        return;
+    }
+    console.log('chain, mode', compChain, compMode)
+    let filteredBase = filterTravelTimes(baseChain, baseMode);
+
+    
+    let filteredComp = filterTravelTimes(compChain, compMode);
+    
+    const bounds = {
+        lowerMin: -20,
+        lowerMid: -10,
+        midpoint: 0,
+        upperMid: 10,
+        upperMax: 20
+    };
+
+    console.log('Building Diff Json');
+    let diffJson = createDifferenceJson(filteredBase, filteredComp);
+    console.log('Building Diff Legend');
+    buildDiffLegend(bounds, baseChain, compChain)
+    addDiffLayer(diffJson, bounds)
+}
+
+function setupTransportButtonHandlers() {
+    // Romobes highlighting based on group set in html
+
+    // Base buttons
+    $(".iconfilter.base").click(function() {
+        $(".iconfilter.base").removeClass("iconfilter-clicked");
+        
+        $(this).addClass("iconfilter-clicked");
+        
+        updateVisualization();
+    });
+    
+    // Comparison buttons
+    $(".iconfilter.comp").click(function() {
+        $(".iconfilter.comp").removeClass("iconfilter-clicked");
+        
+        $(this).addClass("iconfilter-clicked");
+        
+        // Update visualization
+        updateVisualization();
+    });
+}
+
+function setupChainDropdownHandlers() {
+    // Updates on chain change
+    
+    // Base 
+    $("#chain-select").change(function() {
+        updateVisualization();
+    });
+    
+    // Comp
+    $("#compChain-select").change(function() {
+        updateVisualization();
+    });
+}
+
+function setupComparisonSwitchHandler() {
+    // Added disabled look to comparison buttons
+    $("#comparisonSwitch").change(function() {
+        const isChecked = $(this).prop("checked");
+        
+        if (isChecked) {
+            $(".iconfilter.comp").prop("disabled", false);
+            $("#compChain-select").prop("disabled", false);
+            
+            $(".comp").parent().show();
+        } else {
+            $(".iconfilter.comp").prop("disabled", true);
+            $("#compChain-select").prop("disabled", true);
+            
+            $(".comp").parent().hide();
+        }
+        
+        updateVisualization();
+    });
+}
+
+
 
 // Home button class based on mapBox IControl example
 class HomeButtonControl {
@@ -201,36 +687,8 @@ map.on('load', () => {
         closeOnClick: false
     });
 
-    // set up a mousemove event handler to toggle a feature state on the heatmap layer
-    map.on('mousemove', 'res8-poly', (e) => {
-        map.getCanvas().style.cursor = 'pointer'; // update the mouse cursor to a pointer to indicate clickability
-        if (e.features.length > 0) {
-            if (hoveredPolygonId !== null) {
-                map.setFeatureState(
-                    { source: 'res8-data', id: hoveredPolygonId },
-                    { hover: false }
-                );
-            }
-            hoveredPolygonId = e.features[0].id;
-            map.setFeatureState(
-                { source: 'res8-data', id: hoveredPolygonId },
-                { hover: true }
-            );
-        }
-    })
-
-    // When the mouse leaves the heatmap layer, update the feature state of the
-    // previously hovered feature.
-    map.on('mouseleave', 'res8-poly', () => {
-        map.getCanvas().style.cursor = ''; // put the mouse cursor back to default
-        if (hoveredPolygonId !== null) {
-            map.setFeatureState(
-                { source: 'res8-data',id: hoveredPolygonId },
-                { hover: false }
-            );
-        }
-        hoveredPolygonId = null;
-    });
+    // refactored hover iteractions due to bug
+    setupHoverInteractions();
 
     // note: Mapbox has a known issue with mouseenter and mouseleave for circle layers
     // the points are right-biased meaning you have to mouse over the right edge of the circle
@@ -264,100 +722,10 @@ map.on('load', () => {
         popup.remove();
     });
 
-    // go through travel time data to build color ramp
-
     fetch('https://drinnnird-uoft.github.io/ggr472-project-foodaccess/data/all_travel_times_res8.geojson')
     .then(response => response.json())
     .then(response => {
         traveltimesjson = response;
-        
-        // get quartiles for choropleth scaling
-        let ttimes = [];
-
-        traveltimesjson.features.forEach((label, i) => {
-            let feature = traveltimesjson.features[i];
-            let props = feature.properties;
-            // handle selected brand here
-            let travtime = props.travel_time;
-            ttimes.push(travtime) 
-        })
-
-        const q1 = quantile(ttimes, 0.25);
-        const q2 = quantile(ttimes, 0.4);
-        const q3 = quantile(ttimes, 0.6);
-        const q4 = quantile(ttimes, 0.8);
-        const upper = Math.max.apply(null, ttimes);
-
-        // build and render legend
-        // declare legend variable using legend div tag
-        const legend = document.getElementById("legend");
-
-        let legendlabels = [
-            '0-' + (q1-1) + ' minutes',
-            q1 + '-' + (q2-1) + ' minutes',
-            q2 + '-' + (q3-1) + ' minutes',
-            q3 + '-' + (q4-1) + ' minutes',
-            q4 + '-' + (upper-1) + ' minutes',
-            upper + ' minutes'
-        ]
-
-        const legendcolors = [
-            '#fee5d9',
-            '#fcbba1',
-            '#fc9272',
-            '#fb6a4a',
-            '#de2d26',
-            '#a50f15'
-        ]
-
-        // for each legend label, create a block to put the color and label in
-        legendlabels.forEach((label, i) => {
-            const color = legendcolors[i];
-
-            const item = document.createElement('div') //each layer gets a 'row' - this isn't in the legend yet, we do this later
-            const key = document.createElement('span') //add a 'key' to the row. A key will be the colour circle
-
-            key.className = 'legend-key'; //the key will take on the shape and style properties defined in css
-            key.style.backgroundColor = color; // the background color is retreived from teh layers array
-
-            const value = document.createElement('span'); //add a value variable to the 'row' in the legend
-            value.innerHTML = `${label}`; //give the value variable text based on the label
-
-            item.appendChild(key); //add the key (colour cirlce) to the legend row
-            item.appendChild(value); //add the value to the legend row
-        
-            legend.appendChild(item); //add row to the legend
-        })
-
-        map.addLayer({
-            'id' : 'res8-poly',
-            'type' : 'fill',
-            'source' : 'res8-data',
-            // 'source-layer' : 'all_travel_times_res8-2sh0kd',
-            'paint': {
-                "fill-color" : [
-                    "step",
-                    ["get", "travel_time"],
-                    "#fee5d9",
-                    q1, "#fcbba1",
-                    q2, "#fc9272",
-                    q3, "#fb6a4a",
-                    q4, "#de2d26",
-                    upper, "#a50f15"
-                ],
-                'fill-opacity': [ // set the fill opacity based on a feature state which is set by a hover event listener
-                'case',
-                ['boolean', ['feature-state', 'hover'], false],
-                1,  // opaque when hovered on
-                0.5 // semi-transparent when not hovered on
-            ],
-            'fill-outline-color': 'white'
-            },
-            //  'filter': ['all', ['has', 'travel_time'], ['!=', ['get', 'travel_time'], null]] // show only hexgrid points that have a travel time set
-        })
-
-        // hide the hexgrid at first until something is selected in the dropdown
-        map.setLayoutProperty("res8-poly", 'visibility', 'none');
 
         // handle clicking on a hexgrid item
         map.on('click', 'res8-poly', (e) => {
@@ -375,42 +743,8 @@ map.on('load', () => {
                 
             }
         })
+        // Chain select moved to setupChainDropdownHandlers
 
-        // click handler for selecting a brand inside map load because the map must be loaded to apply filters
-        $("#chain-select").change(function() {
-            // unhide the legend
-            $("#legend").show();
-
-            let sel = $(this).val();
-            console.log("Selected " + sel)
-
-            // get currently selected travel method
-            const sel_travel_mode = $(".iconfilter-clicked"); // the selected transit mode will have this class set
-            let currmode = 'transit';
-            if(sel_travel_mode.length == 1) {
-                const pieces = sel_travel_mode[0].id.split("btn"); // the icons are named btnBike, btnCar, etc...
-                currmode = pieces[1].toLowerCase(); // the geoJSON file has all lowercase properties, so lowercase to match
-            }
-
-            if(sel !== 0) {
-                // if something has been selected
-                // show the hexgrid for that selection
-                
-                map.setLayoutProperty("res8-poly", "visibility", "visible");
-
-                // big filter expression that means 
-                // show hexgrid cells that match the currently selected travel mode AND brand
-                // AND also require that the travel time not be null or missing
-                map.setFilter('res8-poly', ['all', ['all', 
-                        // ['has', 'travel_time'],
-                        // ['!=', ['get', 'travel_time'], null],
-                        ['==', ['get', 'brand'], sel],
-                    ['==', ['get', 'transport_mode'], currmode]
-                ]]);
-
-                map.setFilter('super-point', ['==', ['get','brand'], sel]); // show only supermarkets that match requested brand
-            }
-        })
     })
 })
 
@@ -422,27 +756,20 @@ $(document).ready(function() {
     // hide legend until a layer is selected
     $("#legend").hide();
 
-    function handleTransportModeClick(transportMode){
-        return function(){
-            $(".iconfilter").removeClass("iconfilter-clicked");
-            $(this).addClass("iconfilter-clicked");
-            
-            const chain = $("#chain-select").find(":selected").val();
-            updateFilter(chain, transportMode);
-        };
+    setupTransportButtonHandlers();
+    setupChainDropdownHandlers();
+    setupComparisonSwitchHandler();
+
+    // Hide comparison controls
+    if (!$("#comparisonSwitch").prop("checked")) {
+        $(".comp").parent().hide();
     }
-
-    // Click handlers fror transport mode buttons
-    $("#btnWalk").click(handleTransportModeClick("walk"));
-    $("#btnBike").click(handleTransportModeClick("bike"));
-    $("#btnTransit").click(handleTransportModeClick("transit"));
-    $("#btnCar").click(handleTransportModeClick("car"));
-
 
     // populate the brands dropdown with brands from the geoJSON file
     let superjson;
     let brands = [];
     let brandselect = document.getElementById("chain-select");
+    let compselect = document.getElementById("compChain-select")
 
     fetch('https://drinnnird-uoft.github.io/ggr472-project-foodaccess/data/supermarkets-WGS84.geojson')
     .then(response => response.json())
@@ -452,5 +779,6 @@ $(document).ready(function() {
 
         brands = extractBrands(superjson)
         populateDropdown(brands, brandselect)
+        populateDropdown(brands, compselect)
     });
 })

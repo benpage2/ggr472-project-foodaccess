@@ -88,10 +88,10 @@
                         <div class="row">
                             <div class="btn-group" role="group" aria-label="...">
                                 <!-- transit filter images from bootstrap SVG -->
-                                <button id="btnWalk" class="bi-person-walking iconfilter"></button>
-                                <button id="btnBike" class="bi-bicycle iconfilter"></button>
-                                <button id="btnTransit" class="bi-bus-front iconfilter  iconfilter-clicked"></button>
-                                <button id="btnCar" class="bi-car-front iconfilter"></button>
+                                <button id="btnWalk" class="bi-person-walking iconfilter base"></button>
+                                <button id="btnBike" class="bi-bicycle iconfilter base"></button>
+                                <button id="btnTransit" class="bi-bus-front iconfilter base iconfilter-clicked"></button>
+                                <button id="btnCar" class="bi-car-front iconfilter base"></button>
                             </div>
                         </div>
                         <div class="row">
@@ -102,20 +102,42 @@
                                 </select>
                             </div>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col" id="click-info">Placeholder for map information when map clicked</div>
-                    </div>
-                    <div class="row">
-                        <!-- LEGEND -->
-                        <div class="col">
-                            <div id='legend' class='col-6 legend'>
-                                <h6>travel time</h6>
-                                <!-- Contents of legend will now be added here -->
+                        <hr>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="comparisonSwitch">
+                                    <label class="form-check-label" for="flexSwitchCheckDefault">Compare Selection</label>
+                                </div>
                             </div>
-                            <div class="col-12"></div>
                         </div>
+                        Transit mode:
+                        <div class="row">
+                            <div class="btn-group" role="group" aria-label="...">
+                                <!-- transit filter images from bootstrap SVG -->
+                                <button id="btnWalkComp" class="bi-person-walking iconfilter comp"></button>
+                                <button id="btnBikeComp" class="bi-bicycle iconfilter comp"></button>
+                                <button id="btnTransitComp" class="bi-bus-front iconfilter comp iconfilter-clicked"></button>
+                                <button id="btnCarComp" class="bi-car-front iconfilter comp"></button>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col"><label for="chains">Choose a grocery chain:</label>
+                                <select id="compChain-select" name="chains">
+                                    <option value="0">Select...</option>
+                                    <!-- add options with javascript -->
+                                </select>
+                            </div>
+                        </div>  
                     </div>
+                </div>
+                <!-- LEGEND -->
+                <div id='legend' class='col-6 legend'>
+                    <h6>travel time</h6>
+                    <!-- Contents of legend will now be added here -->
+                </div>
+                <div class="row">
+                    <div class="col" id="click-info">Placeholder for map information when map clicked</div>
                 </div>
             </div>
         </div>
